@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>হোয়াটসঅ্যাপ কানেক্ট</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Roboto, -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    body {
+      background: radial-gradient(circle at top left, #1e1b4b, #0f172a);
+      color: #f8fafc;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .card {
+      background: rgba(30, 41, 59, 0.7);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      padding: 32px 24px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .header h2 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #38bdf8;
+      letter-spacing: -0.5px;
+    }
+
+    .header p {
+      font-size: 13px;
+      color: #94a3b8;
+      margin-top: 6px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    select, input {
+      width: 100%;
+      padding: 14px 16px;
+      border-radius: 12px;
+      border: 1px solid #334155;
+      background-color: #0f172a;
+      color: #ffffff;
+      font-size: 15px;
+      outline: none;
+      transition: all 0.3s ease;
+    }
+
+    select:focus, input:focus {
+      border-color: #38bdf8;
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+    }
+
+    .btn-primary {
+      width: 100%;
+      padding: 14px;
+      border-radius: 12px;
+      border: none;
+      background: linear-gradient(135deg, #0284c7, #0369a1);
+      color: #ffffff;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #0369a1, #075985);
+      transform: translateY(-1px);
+    }
+
+    .btn-primary:active {
+      transform: translateY(1px);
+    }
+
+    /* লোডিং অ্যানিমেশন সেকশন */
+    .loading-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px 0;
+      gap: 12px;
+    }
+
+    .spinner {
+      width: 44px;
+      height: 44px;
+      border: 4px solid rgba(56, 189, 248, 0.15);
+      border-top: 4px solid #38bdf8;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .loading-text {
+      font-size: 14px;
+      color: #cbd5e1;
+      font-weight: 500;
+    }
+
+    /* কোড দেখানোর সেকশন */
+    .code-container {
+      display: flex;
+      gap: 10px;
+    }
+
+    .code-box {
+      flex: 1;
+      text-align: center;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 3px;
+      color: #38bdf8;
+      border: 2px dashed #0284c7;
+      background-color: rgba(2, 132, 199, 0.1);
+    }
+
+    .btn-copy {
+      padding: 0 20px;
+      border-radius: 12px;
+      border: 1px solid #38bdf8;
+      background-color: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s ease;
+    }
+
+    .btn-copy:hover {
+      background-color: rgba(56, 189, 248, 0.3);
+    }
+
+    /* হাল্কা গাইডলাইন ইনস্ট্রাকশন */
+    .guide-box {
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 12px;
+      color: #64748b;
+      line-height: 1.6;
+    }
+
+    .guide-box p {
+      font-weight: 600;
+      color: #94a3b8;
+      margin-bottom: 4px;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    
+    <!-- হেডার সেকশন -->
+    <div class="header">
+      <h2>হোয়াটসঅ্যাপ লিংক সার্ভিস</h2>
+      <p>সহজে এক ক্লিকে আপনার ডিভাইস কানেক্ট করুন</p>
+    </div>
+
+    <!-- স্টেপ ১: নম্বর ইনপুট এবং অপশন -->
+    <div id="step1" class="form-group">
+      <select id="countrySelect">
+        <option value="880" selected>🇧🇩 Bangladesh (+880)</option>
+        <option value="91">🇮🇳 India (+91)</option>
+        <option value="92">🇵🇰 Pakistan (+92)</option>
+        <option value="966">🇸🇦 Saudi Arabia (+966)</option>
+        <option value="971">🇦🇪 UAE (+971)</option>
+        <option value="44">🇬🇧 United Kingdom (+44)</option>
+        <option value="1">🇺🇸 USA / Canada (+1)</option>
+      </select>
+
+      <input id="phoneNumber" type="tel" placeholder="ফোন নম্বর লিখুন (যেমন: 17XXXXXXXX)">
+
+      <button onclick="submitNumber()" class="btn-primary">Next</button>
+    </div>
+
+    <!-- লোডিং অ্যানিমেশন সেকশন -->
+    <div id="loading" class="loading-container hidden">
+      <div class="spinner"></div>
+      <div class="loading-text">পেয়ারিং কোড তৈরি হচ্ছে...</div>
+    </div>
+
+    <!-- স্টেপ ২: পেয়ারিং কোড ও কপি বাটন -->
+    <div id="step2" class="code-container hidden">
+      <input id="pairingCode" class="code-box" type="text" readonly>
+      <button onclick="copyCode()" class="btn-copy">Copy</button>
+    </div>
+
+    <!-- হাল্কা গাইডলাইন -->
+    <div id="guide" class="guide-box">
+      <p>কোড পাওয়ার পরকরণীয়:</p>
+      1. WhatsApp-এর Settings > Linked Devices-এ যান।<br>
+      2. 'Link with phone number instead'-এ ক্লিক করে কোডটি দিন।
+    </div>
+
+  </div>
+
+  <script>
+    async function submitNumber() {
+      const countryCode = document.getElementById('countrySelect').value;
+      const phoneInput = document.getElementById('phoneNumber').value.trim();
+
+      if (!phoneInput) {
+        alert('দয়া করে আপনার ফোন নম্বরটি প্রদান করুন।');
+        return;
+      }
+
+      const fullPhoneNumber = countryCode + phoneInput;
+
+      // ১. ইনপুট বক্স হাইড করে লোডিং অ্যানিমেশন চালু
+      document.getElementById('step1').classList.add('hidden');
+      document.getElementById('loading').classList.remove('hidden');
+
+      try {
+        // ব্যাকএন্ড এপিআই রিকোয়েস্ট (Baileys backend)
+        const response = await fetch('/api/request-pairing', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: fullPhoneNumber })
+        });
+
+        const data = await response.json();
+
+        if (data.code) {
+          // ২. লোডিং বন্ধ করে কোড ও কপি বাটন প্রদর্শন
+          document.getElementById('loading').classList.add('hidden');
+          document.getElementById('step2').classList.remove('hidden');
+          document.getElementById('pairingCode').value = data.code;
+        } else {
+          throw new Error('Code generation failed');
+        }
+      } catch (error) {
+        alert('কোড পেতে কিছুটা সমস্যা হয়েছে। দয়া করে আবার চেষ্টা করুন।');
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('step1').classList.remove('hidden');
+      }
+    }
+
+    function copyCode() {
+      const codeInput = document.getElementById('pairingCode');
+      navigator.clipboard.writeText(codeInput.value);
+      
+      // কপি হওয়ার পর বাটনের টেক্সট সাময়িক পরিবর্তন
+      const copyBtn = document.querySelector('.btn-copy');
+      copyBtn.innerText = 'Copied!';
+      copyBtn.style.backgroundColor = 'rgba(56, 189, 248, 0.4)';
+      
+      setTimeout(() => {
+        copyBtn.innerText = 'Copy';
+        copyBtn.style.backgroundColor = 'rgba(56, 189, 248, 0.15)';
+      }, 2000);
+    }
+  </script>
+
+</body>
+</html>
