@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>WhatsApp Web Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: #111b21; color: #e9edef; height: 100vh; overflow: hidden; }
+
+    /* কমন হেডার */
+    .app-header { height: 60px; background-color: #202c33; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid #222d34; font-weight: 600; color: #00a884; }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .icon-btn { cursor: pointer; font-size: 20px; color: #8696a0; transition: 0.2s; }
+    .icon-btn:hover { color: #fff; }
+
+    /* ১. অ্যাকাউন্ট সিলেক্ট স্ক্রিন */
+    .screen { display: none; height: 100vh; flex-direction: column; }
+    .screen.active { display: flex; }
+
+    .acc-grid { padding: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; overflow-y: auto; }
+    .acc-card { background-color: #202c33; border: 1px solid #222d34; border-radius: 12px; padding: 15px; text-align: center; cursor: pointer; transition: 0.2s; }
+    .acc-card:active { transform: scale(0.98); background-color: #2a3942; }
+    .acc-card .avatar { width: 50px; height: 50px; border-radius: 50%; background-color: #00a884; color: #111b21; font-weight: bold; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-size: 18px; }
+    .acc-card .phone { font-size: 13px; color: #e9edef; font-weight: 500; }
+
+    /* ২. চ্যাট লিস্ট স্ক্রিন */
+    .search-box { padding: 10px 16px; background-color: #111b21; border-bottom: 1px solid #222d34; }
+    .search-box input { width: 100%; padding: 12px; background-color: #202c33; border: none; border-radius: 8px; color: #fff; outline: none; font-size: 14px; }
+    .chat-list { flex: 1; overflow-y: auto; }
+    .chat-item { padding: 14px 16px; border-bottom: 1px solid #222d34; cursor: pointer; display: flex; align-items: center; gap: 12px; }
+    .chat-item:active { background-color: #202c33; }
+    .chat-item .chat-avatar { width: 42px; height: 42px; border-radius: 50%; background-color: #6b7c85; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #fff; }
+
+    /* ৩. মেইন চ্যাট স্ক্রিন */
+    .messages-box { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; background-image: radial-gradient(#222d34 1px, transparent 0); background-size: 24px 24px; }
+    .msg-bubble { max-width: 85%; padding: 8px 12px; border-radius: 8px; font-size: 14px; line-height: 1.4; word-break: break-word; }
+    .msg-bubble.incoming { background-color: #202c33; align-self: flex-start; }
+    .msg-bubble.outgoing { background-color: #005c4b; align-self: flex-end; }
+    .msg-actions { font-size: 11px; margin-top: 4px; display: flex; gap: 10px; justify-content: flex-end; opacity: 0.8; }
+    .msg-btn { cursor: pointer; color: #8696a0; text-decoration: underline; }
+
+    .type-area { height: 62px; background-color: #202c33; display: flex; align-items: center; padding: 8px 12px; gap: 8px; }
+    .type-area input[type="text"] { flex: 1; background-color: #2a3942; border: none; outline: none; color: #fff; padding: 12px; border-radius: 8px; font-size: 15px; }
+    .attach-btn { cursor: pointer; font-size: 22px; color: #8696a0; padding: 0 4px; }
+    .btn-send { background-color: #00a884; color: #111b21; border: none; padding: 10px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+  <!-- ১. অ্যাকাউন্ট সিলেক্ট করার মূল পেজ -->
+  <div id="screenAccounts" class="screen active">
+    <div class="app-header">
+      <span>কানেক্টেড অ্যাকাউন্টসমূহ</span>
+      <span class="icon-btn" onclick="fetchAccounts()" title="রিফ্রেশ">🔄</span>
+    </div>
+    <div id="accountGrid" class="acc-grid"></div>
+  </div>
+
+  <!-- ২. চ্যাট লিস্ট স্ক্রিন -->
+  <div id="screenChatList" class="screen">
+    <div class="app-header">
+      <div class="header-left">
+        <span id="activeAccountTitle"></span>
+      </div>
+      <!-- সেশন ক্লোজ করার বাটন (অ্যাকেউন্ট ব্যাকএন্ডে সচল থাকবে কিন্তু ভিউ বন্ধ হবে) -->
+      <span class="icon-btn" onclick="closeSessionView()" title="Close View">✖</span>
+    </div>
+    <div class="search-box">
+      <input id="newContactInput" type="tel" placeholder="নতুন নম্বর লিখে Enter চাপুন..." onkeypress="handleNewChat(event)">
+    </div>
+    <div id="chatThreadList" class="chat-list">
+      <div style="padding:20px; color:#8696a0; text-align:center;">উপরে নম্বর দিয়ে নতুন চ্যাট শুরু করুন</div>
+    </div>
+  </div>
+
+  <!-- ৩. মেইন চ্যাট উইন্ডো -->
+  <div id="screenMainChat" class="screen">
+    <div class="app-header">
+      <div class="header-left">
+        <!-- ব্যাক বাটন চ্যাট লিস্টে ফেরার জন্য -->
+        <span class="icon-btn" onclick="showScreen('screenChatList')">⬅</span>
+        <span id="chatTitle"></span>
+      </div>
+    </div>
+
+    <div id="messagesBox" class="messages-box"></div>
+
+    <div class="type-area">
+      <label for="fileInput" class="attach-btn" title="ফাইল পাঠান">📎</label>
+      <input type="file" id="fileInput" style="display: none;" onchange="handleFileUpload(event)">
+      <input id="messageInput" type="text" placeholder="মেসেজ লিখুন..." onkeypress="if(event.key==='Enter') sendMessage()">
+      <button onclick="sendMessage()" class="btn-send">Send</button>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    let selectedAccount = null;
+    let selectedChatJid = null;
+    const activeMessages = {};
+
+    // স্ক্রিন নেভিগেশন হ্যান্ডলার
+    function showScreen(screenId) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(screenId).classList.add('active');
+    }
+
+    // ১. কানেক্টেড অ্যাকাউন্টস লোড করা
+    async function fetchAccounts() {
+      const res = await fetch('/api/admin/numbers');
+      const data = await res.json();
+      const grid = document.getElementById('accountGrid');
+      grid.innerHTML = '';
+
+      if (data.numbers.length === 0) {
+        grid.innerHTML = '<div style="color:#8696a0; text-align:center; grid-column: 1/-1;">কোনো কানেক্টেড অ্যাকাউন্ট পাওয়া যায়নি</div>';
+        return;
+      }
+
+      data.numbers.forEach(phone => {
+        const card = document.createElement('div');
+        card.className = 'acc-card';
+        card.onclick = () => openAccount(phone);
+        card.innerHTML = `
+          <div class="avatar">${phone.slice(-2)}</div>
+          <div class="phone">+${phone}</div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    // ২. অ্যাকাউন্ট সিলেক্ট করা
+    function openAccount(phone) {
+      selectedAccount = phone;
+      document.getElementById('activeAccountTitle').innerText = `+${phone}`;
+      showScreen('screenChatList');
+    }
+
+    // সেশন ভিউ বন্ধ করে অ্যাকাউন্ট পেজে ফেরা (সেশন ব্যাকএন্ডে বজায় থাকবে)
+    function closeSessionView() {
+      selectedAccount = null;
+      selectedChatJid = null;
+      showScreen('screenAccounts');
+      fetchAccounts();
+    }
+
+    // ৩. নতুন চ্যাট শুরু ও মেইন চ্যাটে যাওয়া
+    function handleNewChat(e) {
+      if (e.key === 'Enter') {
+        const input = document.getElementById('newContactInput');
+        let rawPhone = input.value.trim();
+        if(!rawPhone) return;
+
+        openChat(rawPhone);
+        input.value = '';
+      }
+    }
+
+    function openChat(phoneNum) {
+      selectedChatJid = phoneNum.includes('@s.whatsapp.net') ? phoneNum : `${phoneNum}@s.whatsapp.net`;
+      document.getElementById('chatTitle').innerText = `+${phoneNum.replace('@s.whatsapp.net', '')}`;
+      document.getElementById('messagesBox').innerHTML = '';
+      showScreen('screenMainChat');
+    }
+
+    // ৪. মেসেজ পাঠানো
+    async function sendMessage() {
+      if (!selectedAccount || !selectedChatJid) return alert('অ্যাকাউন্ট সিলেক্ট করা নেই!');
+      const input = document.getElementById('messageInput');
+      const text = input.value.trim();
+      if (!text) return;
+
+      const res = await fetch('/api/admin/send-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ senderPhone: selectedAccount, recipientJid: selectedChatJid, text })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        appendMessage(text, 'outgoing', data.key);
+        input.value = '';
+      }
+    }
+
+    // ৫. ফাইল/মিডিয়া পাঠানো
+    async function handleFileUpload(event) {
+      const file = event.target.files[0];
+      if (!file || !selectedAccount || !selectedChatJid) return alert('অ্যাকাউন্ট সিলেক্ট করা নেই!');
+
+      let fileType = 'document';
+      if (file.type.startsWith('image/')) fileType = 'image';
+      else if (file.type.startsWith('audio/')) fileType = 'audio';
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('senderPhone', selectedAccount);
+      formData.append('recipientJid', selectedChatJid);
+      formData.append('fileType', fileType);
+
+      const res = await fetch('/api/admin/send-media', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.success) {
+        appendMessage(`📁 Sent ${fileType}: ${file.name}`, 'outgoing', data.key);
+        event.target.value = '';
+      }
+    }
+
+    // ৬. মেসেজ UI-তে যোগ করা
+    function appendMessage(text, type, key = null) {
+      const box = document.getElementById('messagesBox');
+      const msgId = key ? key.id : 'msg_' + Date.now();
+      if(key) activeMessages[msgId] = key;
+
+      const div = document.createElement('div');
+      div.id = msgId;
+      div.className = `msg-bubble ${type}`;
+      
+      let actionsHtml = '';
+      if (type === 'outgoing' && key) {
+        actionsHtml = `
+          <div class="msg-actions">
+            <span class="msg-btn" onclick="editMessage('${msgId}')">Edit</span>
+            <span class="msg-btn" onclick="deleteMessage('${msgId}')">Delete</span>
+          </div>
+        `;
+      }
+
+      div.innerHTML = `<span class="msg-text">${text}</span> ${actionsHtml}`;
+      box.appendChild(div);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    // ৭. মেসেজ এডিট ও ডিলিট
+    async function editMessage(msgId) {
+      const newText = prompt('মেসেজটি পরিবর্তন করুন:');
+      if (!newText) return;
+      const key = activeMessages[msgId];
+      const res = await fetch('/api/admin/edit-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ senderPhone: selectedAccount, recipientJid: selectedChatJid, key, newText })
+      });
+      const data = await res.json();
+      if(data.success) document.querySelector(`#${msgId} .msg-text`).innerText = newText + ' (Edited)';
+    }
+
+    async function deleteMessage(msgId) {
+      if(!confirm('মেসেজটি ডিলিট করবেন?')) return;
+      const key = activeMessages[msgId];
+      const res = await fetch('/api/admin/delete-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ senderPhone: selectedAccount, recipientJid: selectedChatJid, key })
+      });
+      const data = await res.json();
+      if(data.success) document.querySelector(`#${msgId} .msg-text`).innerText = '🚫 Deleted';
+    }
+
+    // সকেট লিসেনার
+    socket.on('new-message', (data) => {
+      if (data.senderPhone === selectedAccount) {
+        appendMessage(data.text, data.fromMe ? 'outgoing' : 'incoming', data.messageKey);
+      }
+    });
+
+    socket.on('session-updated', () => fetchAccounts());
+    
+    // প্রাথমিক লোড
+    fetchAccounts();
+  </script>
+</body>
+</html>
