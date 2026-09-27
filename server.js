@@ -17,6 +17,7 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 const activeSessions = {};
+const sessionStores = {};
 
 const SESSIONS_DIR = path.join(__dirname, 'sessions');
 if (!fs.existsSync(SESSIONS_DIR)) {
@@ -29,12 +30,16 @@ async function initSession(phone) {
   const sessionDir = path.join(SESSIONS_DIR, `acc_${phone}`);
   const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
 
+  if (!sessionStores[phone]) {
+    sessionStores[phone] = { chats: {}, messages: {} };
+  }
+
   const sock = makeWASocket({
     auth: state,
     printQRInTerminal: false,
     logger: pino({ level: 'silent' }),
     browser: ['Ubuntu', 'Chrome', '20.0.04'],
-    syncFullHistory: false,
+    syncFullHistory: true,
     markOnlineOnConnect: true,
     keepAliveIntervalMs: 25000
   });
@@ -59,6 +64,7 @@ async function initSession(phone) {
         if (fs.existsSync(sessionDir)) {
           fs.rmSync(sessionDir, { recursive: true, force: true });
         }
+        delete sessionStores[phone];
         io.emit('session-updated', { phone, status: 'disconnected' });
       } else {
         console.log(`[Reconnecting] Account: +${phone}`);
@@ -67,12 +73,40 @@ async function initSession(phone) {
     }
   });
 
+  sock.ev.on('messaging-history.set', ({ chats, messages }) => {
+    chats.forEach(chat => {
+      sessionStores[phone].chats[chat.id] = chat;
+    });
+    messages.forEach(msg => {
+      const jid = msg.key.remoteJid;
+      if (!sessionStores[phone].messages[jid]) {
+        sessionStores[phone].messages[jid] = [];
+      }
+      sessionStores[phone].messages[jid].push(msg);
+    });
+    io.emit('history-synced', { phone });
+  });
+
+  sock.ev.on('chats.upsert', (chats) => {
+    chats.forEach(chat => {
+      sessionStores[phone].chats[chat.id] = { ...sessionStores[phone].chats[chat.id], ...chat };
+    });
+  });
+
   sock.ev.on('messages.upsert', ({ messages, type }) => {
+    const msg = messages[0];
+    if (!msg) return;
+
+    const jid = msg.key.remoteJid;
+    if (!sessionStores[phone].messages[jid]) {
+      sessionStores[phone].messages[jid] = [];
+    }
+    sessionStores[phone].messages[jid].push(msg);
+
     if (type === 'notify') {
-      const msg = messages[0];
       io.emit('new-message', {
         senderPhone: phone,
-        fromJid: msg.key.remoteJid,
+        fromJid: jid,
         messageKey: msg.key,
         fromMe: msg.key.fromMe,
         text: msg.message?.conversation || msg.message?.extendedTextMessage?.text || 'Media Message',
@@ -117,7 +151,7 @@ app.post('/api/request-pairing', async (req, res) => {
       printQRInTerminal: false,
       logger: pino({ level: 'silent' }),
       browser: ['Ubuntu', 'Chrome', '20.0.04'],
-      syncFullHistory: false,
+      syncFullHistory: true,
       markOnlineOnConnect: true
     });
 
@@ -140,6 +174,7 @@ app.post('/api/request-pairing', async (req, res) => {
           if (fs.existsSync(sessionDir)) {
             fs.rmSync(sessionDir, { recursive: true, force: true });
           }
+          delete sessionStores[phone];
           io.emit('session-updated', { phone, status: 'disconnected' });
         } else {
           setTimeout(() => initSession(phone), 3000);
@@ -170,6 +205,33 @@ app.get('/api/admin/numbers', (req, res) => {
   res.json({ numbers: Object.keys(activeSessions) });
 });
 
+app.get('/api/admin/chats/:phone', (req, res) => {
+  const phone = req.params.phone;
+  const store = sessionStores[phone];
+  if (!store) return res.json({ chats: [] });
+
+  const chatList = Object.keys(store.chats).map(jid => ({
+    jid,
+    name: store.chats[jid].name || store.chats[jid].id.split('@')[0]
+  }));
+
+  res.json({ chats: chatList });
+});
+
+app.get('/api/admin/messages/:phone/:jid', (req, res) => {
+  const { phone, jid } = req.params;
+  const store = sessionStores[phone];
+  if (!store || !store.messages[jid]) return res.json({ messages: [] });
+
+  const msgs = store.messages[jid].map(m => ({
+    text: m.message?.conversation || m.message?.extendedTextMessage?.text || 'Media Message',
+    fromMe: m.key.fromMe,
+    timestamp: m.messageTimestamp
+  }));
+
+  res.json({ messages: msgs });
+});
+
 app.post('/api/admin/send-message', async (req, res) => {
   const { senderPhone, recipientJid, text } = req.body;
   const sock = activeSessions[senderPhone];
@@ -179,6 +241,11 @@ app.post('/api/admin/send-message', async (req, res) => {
   try {
     const formattedJid = recipientJid.includes('@s.whatsapp.net') ? recipientJid : `${recipientJid}@s.whatsapp.net`;
     const sentMsg = await sock.sendMessage(formattedJid, { text });
+    
+    if (!sessionStores[senderPhone]) sessionStores[senderPhone] = { chats: {}, messages: {} };
+    if (!sessionStores[senderPhone].messages[formattedJid]) sessionStores[senderPhone].messages[formattedJid] = [];
+    sessionStores[senderPhone].messages[formattedJid].push(sentMsg);
+
     res.json({ success: true, key: sentMsg.key });
   } catch (error) {
     res.status(500).json({ error: 'Failed to send message' });
