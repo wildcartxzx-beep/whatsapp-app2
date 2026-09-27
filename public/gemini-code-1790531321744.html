@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>WhatsApp Web Dashboard</title>
+  <style>
+    * { 
+      box-sizing: border-box; 
+      margin: 0; 
+      padding: 0; 
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+      -webkit-tap-highlight-color: transparent; 
+    }
+    
+    html, body { 
+      height: 100%;
+      height: -webkit-fill-available;
+      width: 100vw; 
+      background-color: #111b21; 
+      color: #e9edef; 
+      overflow: hidden; 
+      position: fixed;
+      left: 0;
+      top: 0;
+    }
+
+    .app-header { 
+      height: 56px; 
+      min-height: 56px; 
+      background-color: #202c33; 
+      display: flex; 
+      align-items: center; 
+      justify-content: space-between; 
+      padding: 0 16px; 
+      border-bottom: 1px solid #222d34; 
+      font-weight: 600; 
+      color: #00a884; 
+      z-index: 10;
+    }
+
+    .header-left { 
+      display: flex; 
+      align-items: center; 
+      gap: 12px; 
+    }
+
+    .icon-btn { 
+      cursor: pointer; 
+      font-size: 20px; 
+      color: #8696a0; 
+      transition: 0.2s; 
+    }
+
+    .icon-btn:hover { 
+      color: #fff; 
+    }
+
+    .screen { 
+      display: none; 
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 100%; 
+      width: 100%;
+      flex-direction: column; 
+    }
+
+    .screen.active { 
+      display: flex; 
+    }
+
+    .acc-grid { 
+      padding: 20px; 
+      display: grid; 
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); 
+      gap: 15px; 
+      overflow-y: auto; 
+      flex: 1;
+    }
+
+    .acc-card { 
+      background-color: #202c33; 
+      border: 1px solid #222d34; 
+      border-radius: 12px; 
+      padding: 15px; 
+      text-align: center; 
+      cursor: pointer; 
+      transition: 0.2s; 
+    }
+
+    .acc-card:active { 
+      transform: scale(0.98); 
+      background-color: #2a3942; 
+    }
+
+    .acc-card .avatar { 
+      width: 50px; 
+      height: 50px; 
+      border-radius: 50%; 
+      background-color: #00a884; 
+      color: #111b21; 
+      font-weight: bold; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      margin: 0 auto 10px; 
+      font-size: 18px; 
+    }
+
+    .acc-card .phone { 
+      font-size: 13px; 
+      color: #e9edef; 
+      font-weight: 500; 
+    }
+
+    .search-box { 
+      padding: 10px 16px; 
+      background-color: #111b21; 
+      border-bottom: 1px solid #222d34; 
+    }
+
+    .search-box input { 
+      width: 100%; 
+      padding: 12px; 
+      background-color: #202c33; 
+      border: none; 
+      border-radius: 8px; 
+      color: #fff; 
+      outline: none; 
+      font-size: 14px; 
+    }
+
+    .chat-list { 
+      flex: 1; 
+      overflow-y: auto; 
+    }
+
+    .chat-item { 
+      padding: 14px 16px; 
+      border-bottom: 1px solid #222d34; 
+      cursor: pointer; 
+      display: flex; 
+      align-items: center; 
+      gap: 12px; 
+      transition: 0.2s; 
+    }
+
+    .chat-item:hover, .chat-item:active { 
+      background-color: #202c33; 
+    }
+
+    .chat-item .chat-avatar { 
+      width: 42px; 
+      height: 42px; 
+      border-radius: 50%; 
+      background-color: #00a884; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      font-weight: bold; 
+      color: #111b21; 
+      font-size: 16px; 
+    }
+
+    .chat-item .chat-info { 
+      display: flex; 
+      flex-direction: column; 
+      gap: 4px; 
+    }
+
+    .chat-item .chat-name { 
+      font-size: 15px; 
+      font-weight: 500; 
+      color: #e9edef; 
+    }
+
+    .messages-box { 
+      flex: 1; 
+      padding: 15px; 
+      overflow-y: auto; 
+      display: flex; 
+      flex-direction: column; 
+      gap: 10px; 
+      background-image: radial-gradient(#222d34 1px, transparent 0); 
+      background-size: 24px 24px; 
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .msg-bubble { 
+      max-width: 85%; 
+      padding: 8px 12px; 
+      border-radius: 8px; 
+      font-size: 14px; 
+      line-height: 1.4; 
+      word-break: break-word; 
+      position: relative; 
+      user-select: none; 
+    }
+
+    .msg-bubble.incoming { 
+      background-color: #202c33; 
+      align-self: flex-start; 
+    }
+
+    .msg-bubble.outgoing { 
+      background-color: #005c4b; 
+      align-self: flex-end; 
+    }
+
+    .msg-bubble img { 
+      max-width: 100%; 
+      max-height: 250px;
+      border-radius: 8px; 
+      margin-bottom: 4px; 
+      display: block; 
+      object-fit: cover;
+    }
+
+    .msg-bubble audio { 
+      width: 220px; 
+      height: 40px; 
+      outline: none; 
+      margin-top: 4px; 
+    }
+
+    /* Fixed Layout and Mobile Safe Area Adjustment */
+    .type-area { 
+      min-height: 60px; 
+      background-color: #202c33; 
+      display: flex; 
+      align-items: center; 
+      padding: 8px 12px; 
+      gap: 8px; 
+      border-top: 1px solid #222d34; 
+      padding-bottom: max(10px, env(safe-area-inset-bottom));
+      box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
+    }
+
+    .type-area input[type="text"] { 
+      flex: 1; 
+      background-color: #2a3942; 
+      border: none; 
+      outline: none; 
+      color: #fff; 
+      padding: 10px 14px; 
+      border-radius: 20px; 
+      font-size: 15px; 
+    }
+
+    .attach-btn, .mic-btn { 
+      cursor: pointer; 
+      font-size: 20px; 
+      color: #8696a0; 
+      padding: 6px; 
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .mic-btn.recording { 
+      color: #ef4444; 
+      animation: pulse 1s infinite; 
+    }
+
+    @keyframes pulse { 
+      0% { opacity: 1; } 
+      50% { opacity: 0.4; } 
+      100% { opacity: 1; } 
+    }
+
+    .btn-send { 
+      background-color: #00a884; 
+      color: #111b21; 
+      border: none; 
+      padding: 10px; 
+      border-radius: 50%; 
+      font-weight: 600; 
+      cursor: pointer; 
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      flex-shrink: 0;
+    }
+
+    .action-modal { 
+      display: none; 
+      position: fixed; 
+      top: 0; 
+      left: 0; 
+      width: 100%; 
+      height: 100%; 
+      background: rgba(0,0,0,0.6); 
+      align-items: center; 
+      justify-content: center; 
+      z-index: 1000; 
+    }
+
+    .action-modal.active { 
+      display: flex; 
+    }
+
+    .modal-content { 
+      background-color: #202c33; 
+      border-radius: 12px; 
+      width: 80%; 
+      max-width: 300px; 
+      padding: 10px 0; 
+      text-align: center; 
+    }
+
+    .modal-btn { 
+      padding: 14px; 
+      font-size: 16px; 
+      border-bottom: 1px solid #2a3942; 
+      cursor: pointer; 
+      color: #e9edef; 
+    }
+
+    .modal-btn:last-child { 
+      border-bottom: none; 
+    }
+
+    .modal-btn.danger { 
+      color: #ef4444; 
+    }
+  </style>
+</head>
+<body>
+
+  <div id="screenAccounts" class="screen active">
+    <div class="app-header">
+      <span>কানেক্টেড অ্যাকাউন্টসমূহ</span>
+      <span class="icon-btn" onclick="fetchAccounts()" title="রিফ্রেশ">🔄</span>
+    </div>
+    <div id="accountGrid" class="acc-grid"></div>
+  </div>
+
+  <div id="screenChatList" class="screen">
+    <div class="app-header">
+      <div class="header-left"><span id="activeAccountTitle"></span></div>
+      <span class="icon-btn" onclick="closeSessionView()" title="Close View">✖</span>
+    </div>
+    <div class="search-box">
+      <input id="newContactInput" type="tel" placeholder="নতুন নম্বর লিখে Enter চাপুন..." onkeypress="handleNewChat(event)">
+    </div>
+    <div id="chatThreadList" class="chat-list"></div>
+  </div>
+
+  <div id="screenMainChat" class="screen">
+    <div class="app-header">
+      <div class="header-left">
+        <span class="icon-btn" onclick="showScreen('screenChatList')">⬅</span>
+        <span id="chatTitle"></span>
+      </div>
+    </div>
+
+    <div id="messagesBox" class="messages-box"></div>
+
+    <div class="type-area">
+      <label for="fileInput" class="attach-btn" title="ফাইল পাঠান">📎</label>
+      <input type="file" id="fileInput" style="display: none;" onchange="handleFileUpload(event)">
+      
+      <input id="messageInput" type="text" placeholder="মেসেজ লিখুন..." onkeypress="if(event.key==='Enter') sendMessage()">
+      
+      <span id="micBtn" class="mic-btn" onclick="toggleVoiceRecord()" title="ভয়েস নোট পাঠান">🎙️</span>
+      <button onclick="sendMessage()" class="btn-send" title="Send">➤</button>
+    </div>
+  </div>
+
+  <div id="actionModal" class="action-modal">
+    <div class="modal-content">
+      <div class="modal-btn" onclick="triggerEditFromModal()">✏️ Edit Message</div>
+      <div class="modal-btn danger" onclick="triggerDeleteFromModal()">🗑️ Delete Message</div>
+      <div class="modal-btn" onclick="closeActionModal()">❌ Cancel</div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    let selectedAccount = null;
+    let selectedChatJid = null;
+    const activeMessages = {};
+    let selectedMsgIdForAction = null;
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let isRecording = false;
+
+    // Adjust full height on mobile browsers
+    function setFullHeight() {
+      document.body.style.height = window.innerHeight + 'px';
+    }
+    window.addEventListener('resize', setFullHeight);
+    setFullHeight();
+
+    function showScreen(screenId) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(screenId).classList.add('active');
+    }
+
+    async function fetchAccounts() {
+      try {
+        const res = await fetch('/api/admin/numbers');
+        const data = await res.json();
+        const grid = document.getElementById('accountGrid');
+        grid.innerHTML = '';
+
+        if (!data.numbers || data.numbers.length === 0) {
+          grid.innerHTML = '<div style="color:#8696a0; text-align:center; grid-column: 1/-1;">কোনো কানেক্টেড অ্যাকাউন্ট পাওয়া যায়নি</div>';
+          return;
+        }
+
+        data.numbers.forEach(phone => {
+          const card = document.createElement('div');
+          card.className = 'acc-card';
+          card.onclick = () => openAccount(phone);
+          card.innerHTML = `<div class="avatar">${phone.slice(-2)}</div><div class="phone">+${phone}</div>`;
+          grid.appendChild(card);
+        });
+      } catch (err) {}
+    }
+
+    async function openAccount(phone) {
+      selectedAccount = phone;
+      document.getElementById('activeAccountTitle').innerText = `+${phone}`;
+      showScreen('screenChatList');
+      await fetchChats(phone);
+    }
+
+    async function fetchChats(phone) {
+      const chatThreadList = document.getElementById('chatThreadList');
+      chatThreadList.innerHTML = '<div style="padding:20px; color:#8696a0; text-align:center;">চ্যাট লোড হচ্ছে...</div>';
+      
+      try {
+        const res = await fetch(`/api/admin/chats/${phone}`);
+        const data = await res.json();
+
+        if (!data.chats || data.chats.length === 0) {
+          chatThreadList.innerHTML = '<div style="padding:20px; color:#8696a0; text-align:center;">কোনো চ্যাট পাওয়া যায়নি।</div>';
+          return;
+        }
+
+        chatThreadList.innerHTML = '';
+        data.chats.forEach(chat => {
+          const item = document.createElement('div');
+          item.className = 'chat-item';
+          item.onclick = () => openChat(chat.jid, chat.name);
+          item.innerHTML = `
+            <div class="chat-avatar">${(chat.name || 'W').charAt(0).toUpperCase()}</div>
+            <div class="chat-info"><div class="chat-name">${chat.name || chat.jid}</div></div>
+          `;
+          chatThreadList.appendChild(item);
+        });
+      } catch (err) {}
+    }
+
+    function closeSessionView() {
+      selectedAccount = null;
+      selectedChatJid = null;
+      showScreen('screenAccounts');
+      fetchAccounts();
+    }
+
+    function handleNewChat(e) {
+      if (e.key === 'Enter') {
+        const input = document.getElementById('newContactInput');
+        let rawPhone = input.value.trim();
+        if(!rawPhone) return;
+
+        const jid = rawPhone.includes('@s.whatsapp.net') ? rawPhone : `${rawPhone}@s.whatsapp.net`;
+        openChat(jid, rawPhone);
+        input.value = '';
+      }
+    }
+
+    async function openChat(jid, displayName) {
+      selectedChatJid = jid;
+      document.getElementById('chatTitle').innerText = displayName || jid.replace('@s.whatsapp.net', '');
+      
+      const box = document.getElementById('messagesBox');
+      box.innerHTML = '<div style="color:#8696a0; text-align:center; padding:20px;">মেসেজ লোড হচ্ছে...</div>';
+      showScreen('screenMainChat');
+
+      try {
+        const res = await fetch(`/api/admin/messages/${selectedAccount}/${encodeURIComponent(jid)}`);
+        const data = await res.json();
+        box.innerHTML = '';
+
+        if (data.messages && data.messages.length > 0) {
+          data.messages.forEach(msg => {
+            appendMessage(msg.text, msg.fromMe ? 'outgoing' : 'incoming', msg.key, msg.mediaData, msg.mediaType);
+          });
+        } else {
+          box.innerHTML = '<div style="color:#8696a0; text-align:center; padding:20px;">কোনো মেসেজ নেই।</div>';
+        }
+      } catch (err) {}
+    }
+
+    async function sendMessage() {
+      if (!selectedAccount || !selectedChatJid) return alert('অ্যাকাউন্ট বা চ্যাট সিলেক্ট করা নেই!');
+      const input = document.getElementById('messageInput');
+      const text = input.value.trim();
+      if (!text) return;
+
+      try {
+        const res = await fetch('/api/admin/send-message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ senderPhone: selectedAccount, recipientJid: selectedChatJid, text })
+        });
+
+        const data = await res.json();
+        if (res.ok && (data.success || data.key)) {
+          appendMessage(text, 'outgoing', data.key);
+          input.value = '';
+        } else {
+          alert('মেসেজ পাঠানো সম্ভব হয়নি: ' + (data.error || 'অজানা ত্রুটি'));
+        }
+      } catch (err) {
+        alert('সার্ভারে যোগাযোগ করতে সমস্যা হচ্ছে!');
+      }
+    }
+
+    async function toggleVoiceRecord() {
+      const micBtn = document.getElementById('micBtn');
+
+      if (!isRecording) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          mediaRecorder = new MediaRecorder(stream);
+          audioChunks = [];
+
+          mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+          mediaRecorder.onstop = async () => {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/ogg' });
+            sendVoiceNote(audioBlob);
+          };
+
+          mediaRecorder.start();
+          isRecording = true;
+          micBtn.classList.add('recording');
+        } catch (err) {
+          alert('মাইক্রোফোন পারমিশন প্রয়োজন বা ব্রাউজার সাপোর্ট করছে না!');
+        }
+      } else {
+        mediaRecorder.stop();
+        isRecording = false;
+        micBtn.classList.remove('recording');
+      }
+    }
+
+    async function sendVoiceNote(blob) {
+      if (!selectedAccount || !selectedChatJid) return alert('অ্যাকাউন্ট বা চ্যাট সিলেক্ট করা নেই!');
+      try {
+        const formData = new FormData();
+        formData.append('file', blob, 'voice.ogg');
+        formData.append('senderPhone', selectedAccount);
+        formData.append('recipientJid', selectedChatJid);
+        formData.append('fileType', 'audio');
+
+        const res = await fetch('/api/admin/send-media', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (res.ok && (data.success || data.key)) {
+          const audioUrl = URL.createObjectURL(blob);
+          appendMessage('', 'outgoing', data.key, audioUrl, 'audio');
+        } else {
+          alert('ভয়েস পাঠানো সম্ভব হয়নি: ' + (data.error || 'অজানা ত্রুটি'));
+        }
+      } catch (err) {
+        alert('ভয়েস পাঠাতে সমস্যা হয়েছে!');
+      }
+    }
+
+    async function handleFileUpload(event) {
+      const file = event.target.files[0];
+      if (!file || !selectedAccount || !selectedChatJid) return;
+
+      let fileType = 'document';
+      if (file.type.startsWith('image/')) fileType = 'image';
+      else if (file.type.startsWith('audio/')) fileType = 'audio';
+
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('senderPhone', selectedAccount);
+        formData.append('recipientJid', selectedChatJid);
+        formData.append('fileType', fileType);
+
+        const res = await fetch('/api/admin/send-media', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (res.ok && (data.success || data.key)) {
+          const fileUrl = URL.createObjectURL(file);
+          appendMessage(file.name, 'outgoing', data.key, fileUrl, fileType);
+          event.target.value = '';
+        } else {
+          alert('ফাইল পাঠানো সম্ভব হয়নি: ' + (data.error || 'অজানা ত্রুটি'));
+        }
+      } catch (err) {
+        alert('ফাইল পাঠাতে সমস্যা হয়েছে!');
+      }
+    }
+
+    function appendMessage(text, type, key = null, mediaData = null, mediaType = null) {
+      const box = document.getElementById('messagesBox');
+      const msgId = (key && key.id) ? key.id : 'msg_' + Date.now();
+      
+      if (key) {
+        activeMessages[msgId] = key;
+      } else {
+        activeMessages[msgId] = { id: msgId, fromMe: type === 'outgoing' };
+      }
+
+      const div = document.createElement('div');
+      div.id = msgId;
+      div.className = `msg-bubble ${type}`;
+      
+      let mediaHtml = '';
+      if (mediaData) {
+        if (mediaType === 'image') {
+          mediaHtml = `<img src="${mediaData}" />`;
+        } else if (mediaType === 'audio') {
+          mediaHtml = `<audio controls src="${mediaData}"></audio>`;
+        }
+      }
+
+      div.innerHTML = `${mediaHtml}<span class="msg-text">${text || ''}</span>`;
+
+      let pressTimer;
+      const startPress = () => {
+        pressTimer = setTimeout(() => {
+          if (type === 'outgoing') {
+            selectedMsgIdForAction = msgId;
+            document.getElementById('actionModal').classList.add('active');
+          }
+        }, 500);
+      };
+      const cancelPress = () => clearTimeout(pressTimer);
+
+      div.addEventListener('touchstart', startPress);
+      div.addEventListener('touchend', cancelPress);
+      div.addEventListener('mousedown', startPress);
+      div.addEventListener('mouseup', cancelPress);
+
+      box.appendChild(div);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function closeActionModal() {
+      document.getElementById('actionModal').classList.remove('active');
+    }
+
+    async function triggerEditFromModal() {
+      closeActionModal();
+      if (!selectedMsgIdForAction) return;
+      
+      const newText = prompt('মেসেজটি পরিবর্তন করুন:');
+      if (!newText) return;
+
+      const key = activeMessages[selectedMsgIdForAction];
+
+      try {
+        const res = await fetch('/api/admin/edit-message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            senderPhone: selectedAccount, 
+            recipientJid: selectedChatJid, 
+            key: key, 
+            newText 
+          })
+        });
+
+        const data = await res.json();
+        if(res.ok && (data.success || res.ok)) {
+          const target = document.querySelector(`#${selectedMsgIdForAction} .msg-text`);
+          if(target) target.innerText = newText + ' (Edited)';
+        } else {
+          alert('মেসেজ এডিট করা যায়নি!');
+        }
+      } catch (err) {}
+    }
+
+    async function triggerDeleteFromModal() {
+      closeActionModal();
+      if (!selectedMsgIdForAction) return;
+      if(!confirm('মেসেজটি ডিলিট করবেন?')) return;
+
+      const key = activeMessages[selectedMsgIdForAction];
+
+      try {
+        const res = await fetch('/api/admin/delete-message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            senderPhone: selectedAccount, 
+            recipientJid: selectedChatJid, 
+            key: key 
+          })
+        });
+
+        const data = await res.json();
+        if(res.ok && (data.success || res.ok)) {
+          const target = document.querySelector(`#${selectedMsgIdForAction} .msg-text`);
+          if(target) target.innerText = '🚫 You deleted this message';
+        } else {
+          alert('মেসেজ ডিলিট করা যায়নি!');
+        }
+      } catch (err) {}
+    }
+
+    socket.on('new-message', (data) => {
+      if (data.senderPhone === selectedAccount) {
+        if (selectedChatJid === data.fromJid) {
+          appendMessage(data.text, data.fromMe ? 'outgoing' : 'incoming', data.messageKey, data.mediaData, data.mediaType);
+        }
+        fetchChats(selectedAccount);
+      }
+    });
+
+    socket.on('history-synced', (data) => {
+      if (data.phone === selectedAccount) {
+        fetchChats(selectedAccount);
+      }
+    });
+
+    socket.on('session-updated', () => fetchAccounts());
+    fetchAccounts();
+  </script>
+</body>
+</html>
