@@ -231,10 +231,14 @@
       document.getElementById('loading').classList.remove('hidden');
 
       try {
+        // ব্যাকএন্ড সার্ভারে ফোন নম্বর এবং সেশন আইডি একসাথে পাঠানো হচ্ছে
         const response = await fetch('/api/request-pairing', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: fullPhoneNumber })
+          body: JSON.stringify({ 
+            phone: fullPhoneNumber,
+            sessionId: `session_${fullPhoneNumber}` 
+          })
         });
 
         const data = await response.json();
@@ -246,6 +250,7 @@
           const codeInput = document.getElementById('pairingCode');
           codeInput.value = data.code;
 
+          // ক্লিপবোর্ডে কোড কপি করার মেথড
           if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(data.code).catch(() => {
               codeInput.select();
@@ -256,6 +261,7 @@
             document.execCommand('copy');
           }
 
+          // কোড কপি হওয়ার ১.৫ সেকেন্ড পর ওয়াটসঅ্যাপ অ্যাপ ওপেন হবে
           setTimeout(() => {
             window.location.href = "whatsapp://"; 
           }, 1500);
