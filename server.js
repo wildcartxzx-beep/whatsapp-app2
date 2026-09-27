@@ -1,7 +1,7 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const path = require('path');
 const fs = require('fs');
@@ -93,7 +93,7 @@ async function initSession(phone) {
     });
   });
 
-  sock.ev.on('messages.upsert', ({ messages, type }) => {
+  sock.ev.on('messages.upsert', async ({ messages, type }) => {
     const msg = messages[0];
     if (!msg) return;
 
@@ -104,12 +104,39 @@ async function initSession(phone) {
     sessionStores[phone].messages[jid].push(msg);
 
     if (type === 'notify') {
+      const isImage = msg.message?.imageMessage;
+      const isAudio = msg.message?.audioMessage;
+      let mediaData = null;
+      let mediaType = null;
+      let textContent = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
+
+      if (isImage) {
+        try {
+          const buffer = await downloadMediaMessage(msg, 'buffer', {});
+          mediaData = `data:image/jpeg;base64,${buffer.toString('base64')}`;
+          mediaType = 'image';
+          textContent = msg.message?.imageMessage?.caption || '';
+        } catch (err) {
+          console.error('Error downloading image:', err);
+        }
+      } else if (isAudio) {
+        try {
+          const buffer = await downloadMediaMessage(msg, 'buffer', {});
+          mediaData = `data:audio/ogg;base64,${buffer.toString('base64')}`;
+          mediaType = 'audio';
+        } catch (err) {
+          console.error('Error downloading audio:', err);
+        }
+      }
+
       io.emit('new-message', {
         senderPhone: phone,
         fromJid: jid,
         messageKey: msg.key,
         fromMe: msg.key.fromMe,
-        text: msg.message?.conversation || msg.message?.extendedTextMessage?.text || 'Media Message',
+        text: textContent,
+        mediaData: mediaData,
+        mediaType: mediaType,
         timestamp: msg.messageTimestamp
       });
     }
@@ -218,15 +245,38 @@ app.get('/api/admin/chats/:phone', (req, res) => {
   res.json({ chats: chatList });
 });
 
-app.get('/api/admin/messages/:phone/:jid', (req, res) => {
+app.get('/api/admin/messages/:phone/:jid', async (req, res) => {
   const { phone, jid } = req.params;
   const store = sessionStores[phone];
   if (!store || !store.messages[jid]) return res.json({ messages: [] });
 
-  const msgs = store.messages[jid].map(m => ({
-    text: m.message?.conversation || m.message?.extendedTextMessage?.text || 'Media Message',
-    fromMe: m.key.fromMe,
-    timestamp: m.messageTimestamp
+  const sock = activeSessions[phone];
+  const msgs = await Promise.all(store.messages[jid].map(async (m) => {
+    let mediaData = null;
+    let mediaType = null;
+
+    if (m.message?.imageMessage && sock) {
+      try {
+        const buffer = await downloadMediaMessage(m, 'buffer', {});
+        mediaData = `data:image/jpeg;base64,${buffer.toString('base64')}`;
+        mediaType = 'image';
+      } catch (err) {}
+    } else if (m.message?.audioMessage && sock) {
+      try {
+        const buffer = await downloadMediaMessage(m, 'buffer', {});
+        mediaData = `data:audio/ogg;base64,${buffer.toString('base64')}`;
+        mediaType = 'audio';
+      } catch (err) {}
+    }
+
+    return {
+      text: m.message?.conversation || m.message?.extendedTextMessage?.text || m.message?.imageMessage?.caption || '',
+      fromMe: m.key.fromMe,
+      key: m.key,
+      mediaData,
+      mediaType,
+      timestamp: m.messageTimestamp
+    };
   }));
 
   res.json({ messages: msgs });
@@ -277,6 +327,10 @@ app.post('/api/admin/send-media', upload.single('file'), async (req, res) => {
     if (fs.existsSync(file.path)) {
       fs.unlinkSync(file.path);
     }
+
+    if (!sessionStores[senderPhone]) sessionStores[senderPhone] = { chats: {}, messages: {} };
+    if (!sessionStores[senderPhone].messages[formattedJid]) sessionStores[senderPhone].messages[formattedJid] = [];
+    sessionStores[senderPhone].messages[formattedJid].push(sentMsg);
 
     res.json({ success: true, key: sentMsg.key });
   } catch (error) {
