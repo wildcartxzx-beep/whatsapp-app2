@@ -346,9 +346,17 @@ app.post('/api/admin/edit-message', async (req, res) => {
 
   try {
     const formattedJid = recipientJid.includes('@s.whatsapp.net') ? recipientJid : `${recipientJid}@s.whatsapp.net`;
-    await sock.sendMessage(formattedJid, { text: newText, edit: key });
+    
+    const fullKey = {
+      remoteJid: formattedJid,
+      fromMe: key && key.fromMe !== undefined ? key.fromMe : true,
+      id: (key && key.id) ? key.id : key
+    };
+
+    await sock.sendMessage(formattedJid, { text: newText, edit: fullKey });
     res.json({ success: true });
   } catch (error) {
+    console.error('Edit message error:', error);
     res.status(500).json({ error: 'Failed to edit message' });
   }
 });
@@ -361,9 +369,17 @@ app.post('/api/admin/delete-message', async (req, res) => {
 
   try {
     const formattedJid = recipientJid.includes('@s.whatsapp.net') ? recipientJid : `${recipientJid}@s.whatsapp.net`;
-    await sock.sendMessage(formattedJid, { delete: key });
+
+    const fullKey = {
+      remoteJid: formattedJid,
+      fromMe: key && key.fromMe !== undefined ? key.fromMe : true,
+      id: (key && key.id) ? key.id : key
+    };
+
+    await sock.sendMessage(formattedJid, { delete: fullKey });
     res.json({ success: true });
   } catch (error) {
+    console.error('Delete message error:', error);
     res.status(500).json({ error: 'Failed to delete message' });
   }
 });
@@ -373,3 +389,4 @@ server.listen(PORT, () => {
   console.log(`[Server Running] http://localhost:${PORT}`);
   autoLoadExistingSessions();
 });
+      
