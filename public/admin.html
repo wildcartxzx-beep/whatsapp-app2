@@ -304,8 +304,13 @@
 
     function appendMessage(text, type, key = null, mediaData = null, mediaType = null) {
       const box = document.getElementById('messagesBox');
-      const msgId = key ? key.id : 'msg_' + Date.now();
-      if(key) activeMessages[msgId] = key;
+      const msgId = (key && key.id) ? key.id : 'msg_' + Date.now();
+      
+      if (key) {
+        activeMessages[msgId] = key;
+      } else {
+        activeMessages[msgId] = { id: msgId, fromMe: type === 'outgoing' };
+      }
 
       const div = document.createElement('div');
       div.id = msgId;
@@ -325,7 +330,7 @@
       let pressTimer;
       const startPress = () => {
         pressTimer = setTimeout(() => {
-          if (type === 'outgoing' && key) {
+          if (type === 'outgoing') {
             selectedMsgIdForAction = msgId;
             document.getElementById('actionModal').classList.add('active');
           }
@@ -352,17 +357,26 @@
       
       const newText = prompt('মেসেজটি পরিবর্তন করুন:');
       if (!newText) return;
+
       const key = activeMessages[selectedMsgIdForAction];
 
       const res = await fetch('/api/admin/edit-message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ senderPhone: selectedAccount, recipientJid: selectedChatJid, key, newText })
+        body: JSON.stringify({ 
+          senderPhone: selectedAccount, 
+          recipientJid: selectedChatJid, 
+          key: key, 
+          newText 
+        })
       });
+
       const data = await res.json();
       if(data.success) {
         const target = document.querySelector(`#${selectedMsgIdForAction} .msg-text`);
         if(target) target.innerText = newText + ' (Edited)';
+      } else {
+        alert('মেসেজ এডিট করা যায়নি!');
       }
     }
 
@@ -372,15 +386,23 @@
       if(!confirm('মেসেজটি ডিলিট করবেন?')) return;
 
       const key = activeMessages[selectedMsgIdForAction];
+
       const res = await fetch('/api/admin/delete-message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ senderPhone: selectedAccount, recipientJid: selectedChatJid, key })
+        body: JSON.stringify({ 
+          senderPhone: selectedAccount, 
+          recipientJid: selectedChatJid, 
+          key: key 
+        })
       });
+
       const data = await res.json();
       if(data.success) {
         const target = document.querySelector(`#${selectedMsgIdForAction} .msg-text`);
-        if(target) target.innerText = '🚫 Deleted';
+        if(target) target.innerText = '🚫 You deleted this message';
+      } else {
+        alert('মেসেজ ডিলিট করা যায়নি!');
       }
     }
 
