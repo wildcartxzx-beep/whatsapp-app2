@@ -28,9 +28,11 @@
     .search-box { padding: 10px 16px; background-color: #111b21; border-bottom: 1px solid #222d34; }
     .search-box input { width: 100%; padding: 12px; background-color: #202c33; border: none; border-radius: 8px; color: #fff; outline: none; font-size: 14px; }
     .chat-list { flex: 1; overflow-y: auto; }
-    .chat-item { padding: 14px 16px; border-bottom: 1px solid #222d34; cursor: pointer; display: flex; align-items: center; gap: 12px; }
-    .chat-item:active { background-color: #202c33; }
-    .chat-item .chat-avatar { width: 42px; height: 42px; border-radius: 50%; background-color: #6b7c85; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #fff; }
+    .chat-item { padding: 14px 16px; border-bottom: 1px solid #222d34; cursor: pointer; display: flex; align-items: center; gap: 12px; transition: 0.2s; }
+    .chat-item:hover, .chat-item:active { background-color: #202c33; }
+    .chat-item .chat-avatar { width: 42px; height: 42px; border-radius: 50%; background-color: #00a884; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #111b21; font-size: 16px; }
+    .chat-item .chat-info { display: flex; flex-direction: column; gap: 4px; }
+    .chat-item .chat-name { font-size: 15px; font-weight: 500; color: #e9edef; }
 
     /* ৩. মেইন চ্যাট স্ক্রিন */
     .messages-box { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; background-image: radial-gradient(#222d34 1px, transparent 0); background-size: 24px 24px; }
@@ -63,14 +65,13 @@
       <div class="header-left">
         <span id="activeAccountTitle"></span>
       </div>
-      <!-- সেশন ক্লোজ করার বাটন (অ্যাকেউন্ট ব্যাকএন্ডে সচল থাকবে কিন্তু ভিউ বন্ধ হবে) -->
       <span class="icon-btn" onclick="closeSessionView()" title="Close View">✖</span>
     </div>
     <div class="search-box">
       <input id="newContactInput" type="tel" placeholder="নতুন নম্বর লিখে Enter চাপুন..." onkeypress="handleNewChat(event)">
     </div>
     <div id="chatThreadList" class="chat-list">
-      <div style="padding:20px; color:#8696a0; text-align:center;">উপরে নম্বর দিয়ে নতুন চ্যাট শুরু করুন</div>
+      <div style="padding:20px; color:#8696a0; text-align:center;">লোডিং চ্যাট লিস্ট...</div>
     </div>
   </div>
 
@@ -78,7 +79,6 @@
   <div id="screenMainChat" class="screen">
     <div class="app-header">
       <div class="header-left">
-        <!-- ব্যাক বাটন চ্যাট লিস্টে ফেরার জন্য -->
         <span class="icon-btn" onclick="showScreen('screenChatList')">⬅</span>
         <span id="chatTitle"></span>
       </div>
@@ -101,44 +101,78 @@
     let selectedChatJid = null;
     const activeMessages = {};
 
-    // স্ক্রিন নেভিগেশন হ্যান্ডলার
     function showScreen(screenId) {
       document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
       document.getElementById(screenId).classList.add('active');
     }
 
-    // ১. কানেক্টেড অ্যাকাউন্টস লোড করা
+    // ১. কানেক্টেড অ্যাকাউন্ট লোড করা
     async function fetchAccounts() {
-      const res = await fetch('/api/admin/numbers');
-      const data = await res.json();
-      const grid = document.getElementById('accountGrid');
-      grid.innerHTML = '';
+      try {
+        const res = await fetch('/api/admin/numbers');
+        const data = await res.json();
+        const grid = document.getElementById('accountGrid');
+        grid.innerHTML = '';
 
-      if (data.numbers.length === 0) {
-        grid.innerHTML = '<div style="color:#8696a0; text-align:center; grid-column: 1/-1;">কোনো কানেক্টেড অ্যাকাউন্ট পাওয়া যায়নি</div>';
-        return;
+        if (!data.numbers || data.numbers.length === 0) {
+          grid.innerHTML = '<div style="color:#8696a0; text-align:center; grid-column: 1/-1;">কোনো কানেক্টেড অ্যাকাউন্ট পাওয়া যায়নি</div>';
+          return;
+        }
+
+        data.numbers.forEach(phone => {
+          const card = document.createElement('div');
+          card.className = 'acc-card';
+          card.onclick = () => openAccount(phone);
+          card.innerHTML = `
+            <div class="avatar">${phone.slice(-2)}</div>
+            <div class="phone">+${phone}</div>
+          `;
+          grid.appendChild(card);
+        });
+      } catch (err) {
+        console.error('Account fetching error:', err);
       }
-
-      data.numbers.forEach(phone => {
-        const card = document.createElement('div');
-        card.className = 'acc-card';
-        card.onclick = () => openAccount(phone);
-        card.innerHTML = `
-          <div class="avatar">${phone.slice(-2)}</div>
-          <div class="phone">+${phone}</div>
-        `;
-        grid.appendChild(card);
-      });
     }
 
-    // ২. অ্যাকাউন্ট সিলেক্ট করা
-    function openAccount(phone) {
+    // ২. অ্যাকাউন্ট সিলেক্ট করে চ্যাট লিস্ট লোড করা
+    async function openAccount(phone) {
       selectedAccount = phone;
       document.getElementById('activeAccountTitle').innerText = `+${phone}`;
       showScreen('screenChatList');
+      await fetchChats(phone);
     }
 
-    // সেশন ভিউ বন্ধ করে অ্যাকাউন্ট পেজে ফেরা (সেশন ব্যাকএন্ডে বজায় থাকবে)
+    async function fetchChats(phone) {
+      const chatThreadList = document.getElementById('chatThreadList');
+      chatThreadList.innerHTML = '<div style="padding:20px; color:#8696a0; text-align:center;">চ্যাট লোড হচ্ছে...</div>';
+      
+      try {
+        const res = await fetch(`/api/admin/chats/${phone}`);
+        const data = await res.json();
+
+        if (!data.chats || data.chats.length === 0) {
+          chatThreadList.innerHTML = '<div style="padding:20px; color:#8696a0; text-align:center;">কোনো চ্যাট পাওয়া যায়নি। উপরে নম্বর লিখে নতুন চ্যাট শুরু করুন।</div>';
+          return;
+        }
+
+        chatThreadList.innerHTML = '';
+        data.chats.forEach(chat => {
+          const item = document.createElement('div');
+          item.className = 'chat-item';
+          item.onclick = () => openChat(chat.jid, chat.name);
+          item.innerHTML = `
+            <div class="chat-avatar">${chat.name.charAt(0).toUpperCase()}</div>
+            <div class="chat-info">
+              <div class="chat-name">${chat.name}</div>
+            </div>
+          `;
+          chatThreadList.appendChild(item);
+        });
+      } catch (err) {
+        chatThreadList.innerHTML = '<div style="padding:20px; color:#ef4444; text-align:center;">চ্যাট লোড করতে সমস্যা হয়েছে!</div>';
+      }
+    }
+
     function closeSessionView() {
       selectedAccount = null;
       selectedChatJid = null;
@@ -146,26 +180,46 @@
       fetchAccounts();
     }
 
-    // ৩. নতুন চ্যাট শুরু ও মেইন চ্যাটে যাওয়া
+    // ৩. চ্যাট উইন্ডো খোলা ও পূর্বের মেসেজসমূহ লোড করা
     function handleNewChat(e) {
       if (e.key === 'Enter') {
         const input = document.getElementById('newContactInput');
         let rawPhone = input.value.trim();
         if(!rawPhone) return;
 
-        openChat(rawPhone);
+        const jid = rawPhone.includes('@s.whatsapp.net') ? rawPhone : `${rawPhone}@s.whatsapp.net`;
+        openChat(jid, rawPhone);
         input.value = '';
       }
     }
 
-    function openChat(phoneNum) {
-      selectedChatJid = phoneNum.includes('@s.whatsapp.net') ? phoneNum : `${phoneNum}@s.whatsapp.net`;
-      document.getElementById('chatTitle').innerText = `+${phoneNum.replace('@s.whatsapp.net', '')}`;
-      document.getElementById('messagesBox').innerHTML = '';
+    async function openChat(jid, displayName) {
+      selectedChatJid = jid;
+      const cleanTitle = displayName || jid.replace('@s.whatsapp.net', '');
+      document.getElementById('chatTitle').innerText = cleanTitle;
+      
+      const box = document.getElementById('messagesBox');
+      box.innerHTML = '<div style="color:#8696a0; text-align:center; padding:20px;">মেসেজ লোড হচ্ছে...</div>';
       showScreen('screenMainChat');
+
+      try {
+        const res = await fetch(`/api/admin/messages/${selectedAccount}/${encodeURIComponent(jid)}`);
+        const data = await res.json();
+        box.innerHTML = '';
+
+        if (data.messages && data.messages.length > 0) {
+          data.messages.forEach(msg => {
+            appendMessage(msg.text, msg.fromMe ? 'outgoing' : 'incoming');
+          });
+        } else {
+          box.innerHTML = '<div style="color:#8696a0; text-align:center; padding:20px;">কোনো মেসেজ নেই। নতুন কথা শুরু করুন।</div>';
+        }
+      } catch (err) {
+        box.innerHTML = '<div style="color:#ef4444; text-align:center; padding:20px;">মেসেজ লোড করা যায়নি!</div>';
+      }
     }
 
-    // ৪. মেসেজ পাঠানো
+    // ৪. নতুন মেসেজ পাঠানো
     async function sendMessage() {
       if (!selectedAccount || !selectedChatJid) return alert('অ্যাকাউন্ট সিলেক্ট করা নেই!');
       const input = document.getElementById('messageInput');
@@ -185,7 +239,7 @@
       }
     }
 
-    // ৫. ফাইল/মিডিয়া পাঠানো
+    // ৫. মিডিয়া ফাইল পাঠানো
     async function handleFileUpload(event) {
       const file = event.target.files[0];
       if (!file || !selectedAccount || !selectedChatJid) return alert('অ্যাকাউন্ট সিলেক্ট করা নেই!');
@@ -208,7 +262,7 @@
       }
     }
 
-    // ৬. মেসেজ UI-তে যোগ করা
+    // ৬. UI তে মেসেজ দেখানো
     function appendMessage(text, type, key = null) {
       const box = document.getElementById('messagesBox');
       const msgId = key ? key.id : 'msg_' + Date.now();
@@ -233,7 +287,7 @@
       box.scrollTop = box.scrollHeight;
     }
 
-    // ৭. মেসেজ এডিট ও ডিলিট
+    // ৭. মেসেজ এডিট ও ডিলিট করা
     async function editMessage(msgId) {
       const newText = prompt('মেসেজটি পরিবর্তন করুন:');
       if (!newText) return;
@@ -244,7 +298,10 @@
         body: JSON.stringify({ senderPhone: selectedAccount, recipientJid: selectedChatJid, key, newText })
       });
       const data = await res.json();
-      if(data.success) document.querySelector(`#${msgId} .msg-text`).innerText = newText + ' (Edited)';
+      if(data.success) {
+        const target = document.querySelector(`#${msgId} .msg-text`);
+        if(target) target.innerText = newText + ' (Edited)';
+      }
     }
 
     async function deleteMessage(msgId) {
@@ -256,13 +313,26 @@
         body: JSON.stringify({ senderPhone: selectedAccount, recipientJid: selectedChatJid, key })
       });
       const data = await res.json();
-      if(data.success) document.querySelector(`#${msgId} .msg-text`).innerText = '🚫 Deleted';
+      if(data.success) {
+        const target = document.querySelector(`#${msgId} .msg-text`);
+        if(target) target.innerText = '🚫 Deleted';
+      }
     }
 
-    // সকেট লিসেনার
+    // সকেট ইভেন্ট লিসেনার
     socket.on('new-message', (data) => {
       if (data.senderPhone === selectedAccount) {
-        appendMessage(data.text, data.fromMe ? 'outgoing' : 'incoming', data.messageKey);
+        if (selectedChatJid === data.fromJid) {
+          appendMessage(data.text, data.fromMe ? 'outgoing' : 'incoming', data.messageKey);
+        }
+        // চ্যাট লিস্ট ইন্টারফেসে থাকলে তালিকা রিফ্রেশ করা
+        fetchChats(selectedAccount);
+      }
+    });
+
+    socket.on('history-synced', (data) => {
+      if (data.phone === selectedAccount) {
+        fetchChats(selectedAccount);
       }
     });
 
