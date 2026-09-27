@@ -33,7 +33,7 @@ async function initSession(phone) {
     auth: state,
     printQRInTerminal: false,
     logger: pino({ level: 'silent' }),
-    browser: ['Ubuntu Admin Engine', 'Chrome', `App-ID-${phone.slice(-4)}`],
+    browser: ['Ubuntu', 'Chrome', '20.0.04'],
     syncFullHistory: false,
     markOnlineOnConnect: true,
     keepAliveIntervalMs: 25000
@@ -104,7 +104,48 @@ app.post('/api/request-pairing', async (req, res) => {
   phone = phone.replace(/[^0-9]/g, '');
 
   try {
-    const sock = await initSession(phone);
+    const sessionDir = path.join(SESSIONS_DIR, `acc_${phone}`);
+    
+    if (fs.existsSync(sessionDir)) {
+      fs.rmSync(sessionDir, { recursive: true, force: true });
+    }
+
+    const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
+
+    const sock = makeWASocket({
+      auth: state,
+      printQRInTerminal: false,
+      logger: pino({ level: 'silent' }),
+      browser: ['Ubuntu', 'Chrome', '20.0.04'],
+      syncFullHistory: false,
+      markOnlineOnConnect: true
+    });
+
+    sock.ev.on('creds.update', saveCreds);
+
+    sock.ev.on('connection.update', (update) => {
+      const { connection, lastDisconnect } = update;
+
+      if (connection === 'open') {
+        console.log(`[Connected] WhatsApp Account: +${phone}`);
+        activeSessions[phone] = sock;
+        io.emit('session-updated', { phone, status: 'connected' });
+      } else if (connection === 'close') {
+        const statusCode = lastDisconnect?.error?.output?.statusCode;
+        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+
+        delete activeSessions[phone];
+
+        if (!shouldReconnect) {
+          if (fs.existsSync(sessionDir)) {
+            fs.rmSync(sessionDir, { recursive: true, force: true });
+          }
+          io.emit('session-updated', { phone, status: 'disconnected' });
+        } else {
+          setTimeout(() => initSession(phone), 3000);
+        }
+      }
+    });
 
     if (!sock.authState.creds.registered) {
       setTimeout(async () => {
@@ -112,15 +153,16 @@ app.post('/api/request-pairing', async (req, res) => {
           const code = await sock.requestPairingCode(phone);
           res.json({ code });
         } catch (err) {
-          res.status(500).json({ error: 'Failed to request pairing code' });
+          console.error(err);
+          res.status(500).json({ error: 'Pairing code generation failed' });
         }
-      }, 4000);
+      }, 2000);
     } else {
       res.json({ message: 'Already registered' });
     }
 
   } catch (error) {
-    res.status(500).json({ error: 'Server initialization error' });
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
